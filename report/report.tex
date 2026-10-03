@@ -1,0 +1,72 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+
+\title{AI Accelerator Design\\Assignment 3: Tensor Flattening and Reconstruction}
+\author{Chitraksh Vasantati}
+\date{October 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+This report details the implementation of a tensor data-layout transformation from a standard $B \times C \times H \times W$ representation to a flattened $B \times (CHW)$ representation, and the corresponding reverse reconstruction back to $B \times C \times H \times W$. The objective is to understand how feature-map tensors are mapped into a linear memory layout for processing elements in AI accelerators.
+
+\section{Algorithm Description}
+
+The core algorithms were implemented from scratch without using any built-in `reshape` or `flatten` functions.
+
+\subsection{Flattening Algorithm}
+The flattening algorithm iterates over the batch size ($B$), channels ($C$), height ($H$), and width ($W$) using nested loops. For each element located at $[b, c, h, w]$, its 1D flattened index within the batch is calculated as:
+\[
+    idx = c \times (H \times W) + h \times W + w
+\]
+The value is then assigned to the flattened tensor at $[b, idx]$.
+
+\subsection{Reconstruction Algorithm}
+The reconstruction algorithm takes the flattened tensor of shape $B \times (C \cdot H \cdot W)$ and restores it. It iterates over the batch $b$ and the flat index $idx$. The original dimensions are recovered using integer division and modulo operations:
+\begin{align*}
+    w &= idx \pmod W \\
+    h &= (idx \,/\, W) \pmod H \\
+    c &= idx \,/\, (H \times W)
+\end{align*}
+The element is then assigned back to the reconstructed tensor at $[b, c, h, w]$.
+
+\section{Manual Indexing Example}
+Consider a small test case with dimensions $B=1$, $C=2$, $H=2$, and $W=3$.
+The total spatial size is $H \times W = 6$.
+The mapping for a few elements is demonstrated below:
+\begin{itemize}
+    \item $I[0, 0, 0, 0] \implies idx = 0 \times 6 + 0 \times 3 + 0 = 0 \implies I_{flat}[0, 0]$
+    \item $I[0, 0, 0, 1] \implies idx = 0 \times 6 + 0 \times 3 + 1 = 1 \implies I_{flat}[0, 1]$
+    \item $I[0, 0, 1, 0] \implies idx = 0 \times 6 + 1 \times 3 + 0 = 3 \implies I_{flat}[0, 3]$
+    \item $I[0, 1, 0, 0] \implies idx = 1 \times 6 + 0 \times 3 + 0 = 6 \implies I_{flat}[0, 6]$
+    \item $I[0, 1, 1, 2] \implies idx = 1 \times 6 + 1 \times 3 + 2 = 11 \implies I_{flat}[0, 11]$
+\end{itemize}
+
+\section{Experimental Results}
+The algorithms were evaluated on several tensor configurations representing different datasets and intermediate feature maps.
+
+\begin{table}[h!]
+    \centering
+    \begin{tabular}{@{}lcccccc@{}}
+    \toprule
+    \textbf{Dataset / Input} & \textbf{B} & \textbf{C} & \textbf{H} & \textbf{W} & $\mathbf{E_{max}}$ & \textbf{MAE} \\ \midrule
+    MNIST / sample           & 1 & 1   & 28 & 28 & 0.00e+00 & 0.00e+00 \\
+    CIFAR / sample           & 1 & 3   & 32 & 32 & 0.00e+00 & 0.00e+00 \\
+    Synthetic fmap1          & 2 & 16  & 32 & 32 & 0.00e+00 & 0.00e+00 \\
+    Synthetic fmap2          & 2 & 64  & 16 & 16 & 0.00e+00 & 0.00e+00 \\
+    Synthetic fmap3          & 2 & 128 & 8  & 8  & 0.00e+00 & 0.00e+00 \\
+    Synthetic fmap4          & 2 & 500 & 4  & 4  & 0.00e+00 & 0.00e+00 \\ \bottomrule
+    \end{tabular}
+    \caption{Experimental results showing the MAE and Max Absolute Error for different image tensors.}
+\end{table}
+
+\section{Discussion}
+As observed in the results table, the Maximum Absolute Error ($E_{max}$) and the Mean Absolute Error (MAE) are identically zero across all configurations. This confirms that the manual indexing formulas for both flattening and reconstructing operate exactly as mathematically expected, inducing no data loss or layout corruption even for large multidimensional tensors. 
+
+\end{document}
